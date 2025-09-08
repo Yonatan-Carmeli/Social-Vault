@@ -12,7 +12,7 @@ const PREVIEW_CONFIG = {
   // Legal scraping server (your own server)
   scraper: {
     enabled: true,
-    baseUrl: 'https://your-deployed-url.railway.app/api', // Replace with your actual deployed URL
+    baseUrl: 'https://social-vault-production.up.railway.app/api', // Your deployed Railway server
     endpoints: {
       scrape: '/scrape',
       batch: '/scrape/batch',
