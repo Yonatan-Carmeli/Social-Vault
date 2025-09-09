@@ -9,9 +9,9 @@ import { auth } from '../FireBase/Config';
 
 // Enhanced Legal Link Preview Configuration
 const PREVIEW_CONFIG = {
-  // Legal scraping server (your own server)
+  // Legal scraping server (your own server) - Temporarily disabled due to Railway issues
   scraper: {
-    enabled: true,
+    enabled: false, // Disabled until Railway deployment is fixed
     baseUrl: 'https://social-vault-production.up.railway.app/api', // Your deployed Railway server
     endpoints: {
       scrape: '/scrape',
@@ -760,7 +760,7 @@ export default function CollectionFormat({ route, navigation }) {
       requestManager.startRequest(url);
       
       try {
-        // 1. Try legal scraping server first (most reliable)
+        // 1. Try legal scraping server first (most reliable) - Currently disabled
         if (PREVIEW_CONFIG.scraper.enabled) {
           try {
             console.log('Trying legal scraper server...');
@@ -787,6 +787,8 @@ export default function CollectionFormat({ route, navigation }) {
           } catch (error) {
             console.log('Legal scraper failed:', error.message);
           }
+        } else {
+          console.log('Legal scraper is disabled, skipping...');
         }
         
         // 2. Try third-party APIs
