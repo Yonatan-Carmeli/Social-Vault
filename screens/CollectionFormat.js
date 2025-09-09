@@ -1145,13 +1145,19 @@ export default function CollectionFormat({ route, navigation }) {
             const cacheAge = Date.now() - (previewData.timestamp ? new Date(previewData.timestamp).getTime() : 0);
             const isRecent = cacheAge < 3600000; // 1 hour
             
-            if (isRecent && previewData.title && previewData.title !== 'Loading preview...') {
+            // Skip cache if it's a fallback preview (force fresh fetch for better data)
+            const isFallbackPreview = previewData.source === 'fallback' || 
+                                     previewData.title.includes('Link') ||
+                                     previewData.description === 'Click to view the full content' ||
+                                     !previewData.image;
+            
+            if (isRecent && previewData.title && previewData.title !== 'Loading preview...' && !isFallbackPreview) {
               console.log('Using recent cached social media data for:', url);
               setLinkPreviews(prev => ({ ...prev, [url]: previewData }));
               setLoadingPreviews(prev => ({ ...prev, [index]: false }));
               return;
             } else {
-              console.log('Social media cache is stale or incomplete, fetching fresh data');
+              console.log('Social media cache is stale, incomplete, or fallback - fetching fresh data');
             }
           } else {
             // For non-social media links, return cached data if it's not stale
@@ -1221,7 +1227,7 @@ export default function CollectionFormat({ route, navigation }) {
         } else {
           console.log('All legal preview sources failed, trying YouTube oEmbed fallback');
           
-          // Try YouTube oEmbed for YouTube links
+          // Try platform-specific oEmbed APIs
           if (normalizedUrl.includes('youtube.com') || normalizedUrl.includes('youtu.be')) {
             try {
               const videoId = extractYouTubeVideoId(normalizedUrl);
@@ -1252,6 +1258,51 @@ export default function CollectionFormat({ route, navigation }) {
                 description: 'Click to view the full content',
                 image: null,
                 siteName: 'YouTube',
+                timestamp: new Date().toISOString(),
+                source: 'fallback'
+              };
+            }
+          } else if (normalizedUrl.includes('facebook.com')) {
+            try {
+              // Try Facebook oEmbed (limited but sometimes works)
+              const oembedUrl = `https://graph.facebook.com/v18.0/oembed_post?url=${encodeURIComponent(normalizedUrl)}&access_token=YOUR_FACEBOOK_ACCESS_TOKEN`;
+              // For now, skip Facebook oEmbed as it requires access token
+              throw new Error('Facebook oEmbed requires access token');
+            } catch (oembedError) {
+              console.log('Facebook oEmbed fallback failed:', oembedError.message);
+              previewData = {
+                title: 'Facebook Post',
+                description: 'Click to view the full content',
+                image: null,
+                siteName: 'Facebook',
+                timestamp: new Date().toISOString(),
+                source: 'fallback'
+              };
+            }
+          } else if (normalizedUrl.includes('instagram.com')) {
+            try {
+              // Instagram doesn't have public oEmbed, but we can try to extract basic info
+              const postId = extractInstagramPostId(normalizedUrl);
+              if (postId) {
+                previewData = {
+                  title: 'Instagram Post',
+                  description: 'Instagram content - click to view the full post',
+                  image: null, // Instagram requires authentication for images
+                  siteName: 'Instagram',
+                  timestamp: new Date().toISOString(),
+                  source: 'instagram_basic'
+                };
+                console.log('Instagram basic info extracted for post:', postId);
+              } else {
+                throw new Error('Could not extract Instagram post ID');
+              }
+            } catch (oembedError) {
+              console.log('Instagram basic extraction failed:', oembedError.message);
+              previewData = {
+                title: 'Instagram Post',
+                description: 'Click to view the full content',
+                image: null,
+                siteName: 'Instagram',
                 timestamp: new Date().toISOString(),
                 source: 'fallback'
               };
@@ -1348,6 +1399,24 @@ export default function CollectionFormat({ route, navigation }) {
       return null;
     } catch (error) {
       console.log('Error extracting YouTube video ID:', error.message);
+      return null;
+    }
+  };
+
+  // Helper function to extract Instagram post ID
+  const extractInstagramPostId = (url) => {
+    try {
+      const urlObj = new URL(url);
+      
+      if (urlObj.hostname.includes('instagram.com')) {
+        // Extract post ID from path like /p/ABC123/ or /reel/ABC123/
+        const pathMatch = urlObj.pathname.match(/\/(?:p|reel)\/([^\/]+)/);
+        return pathMatch ? pathMatch[1] : null;
+      }
+      
+      return null;
+    } catch (error) {
+      console.log('Error extracting Instagram post ID:', error.message);
       return null;
     }
   };
