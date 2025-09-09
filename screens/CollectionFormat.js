@@ -791,13 +791,25 @@ export default function CollectionFormat({ route, navigation }) {
           console.log('Legal scraper is disabled, skipping...');
         }
         
-        // 2. Try third-party APIs
+        // 2. Try third-party APIs with improved rate limit handling
         const enabledApis = Object.entries(PREVIEW_CONFIG.apis)
           .filter(([_, config]) => config.enabled)
           .sort(([_, a], [__, b]) => a.priority - b.priority);
         
         for (const [apiName, config] of enabledApis) {
           try {
+            // Check if this API is in retry cooldown
+            if (requestTracker.apiRetryTimes && requestTracker.apiRetryTimes.has(apiName)) {
+              const retryTime = requestTracker.apiRetryTimes.get(apiName);
+              if (Date.now() < retryTime) {
+                console.log(`${apiName} is in retry cooldown, skipping...`);
+                continue;
+              } else {
+                // Retry time has passed, remove from cooldown
+                requestTracker.apiRetryTimes.delete(apiName);
+              }
+            }
+            
             console.log(`Trying ${apiName} API...`);
             let apiUrl = '';
             
@@ -830,6 +842,10 @@ export default function CollectionFormat({ route, navigation }) {
                 // Store retry time for this API
                 requestTracker.apiRetryTimes = requestTracker.apiRetryTimes || new Map();
                 requestTracker.apiRetryTimes.set(apiName, Date.now() + (parseInt(retryAfter) * 1000));
+              } else {
+                // Default retry after 5 minutes if no retry-after header
+                requestTracker.apiRetryTimes = requestTracker.apiRetryTimes || new Map();
+                requestTracker.apiRetryTimes.set(apiName, Date.now() + (5 * 60 * 1000));
               }
               continue;
             }
@@ -1323,7 +1339,7 @@ export default function CollectionFormat({ route, navigation }) {
             }
           } else if (normalizedUrl.includes('instagram.com')) {
             try {
-              // Instagram doesn't have public oEmbed, but we can try to extract basic info
+              // Try Instagram oEmbed first (limited but sometimes works)
               const postId = extractInstagramPostId(normalizedUrl);
               const isReel = normalizedUrl.includes('/reel/');
               const isStory = normalizedUrl.includes('/stories/');
@@ -1333,22 +1349,99 @@ export default function CollectionFormat({ route, navigation }) {
                 if (isReel) postType = 'Reel';
                 if (isStory) postType = 'Story';
                 
-                previewData = {
-                  title: `Instagram ${postType}`,
-                  description: `View this ${postType.toLowerCase()} on Instagram - Post ID: ${postId}`,
-                  image: `data:image/svg+xml;base64,${btoa(`<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#e4405f"/><text x="200" y="150" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">Instagram ${postType}</text></svg>`)}`,
-                  siteName: 'Instagram',
-                  timestamp: new Date().toISOString(),
-                  source: 'instagram_basic',
-                  postId: postId,
-                  postType: postType
-                };
+                // Try Instagram oEmbed API (limited availability)
+                try {
+                  const oembedUrl = `https://graph.facebook.com/v18.0/instagram_oembed?url=${encodeURIComponent(normalizedUrl)}&access_token=YOUR_ACCESS_TOKEN`;
+                  // Note: This requires a Facebook App access token, which we don't have
+                  // So we'll use a different approach
+                } catch (oembedError) {
+                  console.log('Instagram oEmbed not available:', oembedError.message);
+                }
+                
+                // Try to fetch actual Instagram page content for better preview
+                try {
+                  console.log('Attempting to fetch Instagram page content...');
+                  
+                  // Try multiple user agents to avoid blocking
+                  const userAgents = [
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                  ];
+                  
+                  const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+                  
+                  const response = await fetch(normalizedUrl, {
+                    headers: {
+                      'User-Agent': randomUserAgent,
+                      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                      'Accept-Language': 'en-US,en;q=0.9',
+                      'Accept-Encoding': 'gzip, deflate, br',
+                      'Connection': 'keep-alive',
+                      'Upgrade-Insecure-Requests': '1',
+                      'Sec-Fetch-Dest': 'document',
+                      'Sec-Fetch-Mode': 'navigate',
+                      'Sec-Fetch-Site': 'none',
+                      'Sec-Fetch-User': '?1',
+                      'Cache-Control': 'max-age=0',
+                      'Referer': 'https://www.instagram.com/'
+                    },
+                    timeout: 15000
+                  });
+                  
+                  if (response.ok) {
+                    const html = await response.text();
+                    
+                    // Extract Open Graph data from Instagram page
+                    const extractMetaContent = (property) => {
+                      const regex = new RegExp(`<meta[^>]*(?:property|name)=["']${property}["'][^>]*content=["']([^"']+)["']`, 'i');
+                      const match = html.match(regex);
+                      return match ? match[1] : null;
+                    };
+                    
+                    const ogTitle = extractMetaContent('og:title');
+                    const ogDescription = extractMetaContent('og:description');
+                    const ogImage = extractMetaContent('og:image');
+                    
+                    if (ogTitle || ogDescription || ogImage) {
+                      previewData = {
+                        title: ogTitle || `Instagram ${postType}`,
+                        description: ogDescription || `View this ${postType.toLowerCase()} on Instagram - Post ID: ${postId}`,
+                        image: ogImage || `data:image/svg+xml;base64,${btoa(`<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#e4405f"/><text x="200" y="150" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">Instagram ${postType}</text></svg>`)}`,
+                        siteName: 'Instagram',
+                        timestamp: new Date().toISOString(),
+                        source: 'instagram_og',
+                        postId: postId,
+                        postType: postType
+                      };
+                      console.log(`Instagram ${postType} OG data extracted:`, { ogTitle, ogDescription, ogImage: !!ogImage });
+                    } else {
+                      throw new Error('No Open Graph data found');
+                    }
+                  } else {
+                    throw new Error(`HTTP ${response.status}`);
+                  }
+                } catch (fetchError) {
+                  console.log('Instagram page fetch failed:', fetchError.message);
+                  // Fallback to basic extraction
+                  previewData = {
+                    title: `Instagram ${postType}`,
+                    description: `View this ${postType.toLowerCase()} on Instagram - Post ID: ${postId}`,
+                    image: `data:image/svg+xml;base64,${btoa(`<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#e4405f"/><text x="200" y="150" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">Instagram ${postType}</text></svg>`)}`,
+                    siteName: 'Instagram',
+                    timestamp: new Date().toISOString(),
+                    source: 'instagram_basic',
+                    postId: postId,
+                    postType: postType
+                  };
+                }
+                
                 console.log(`Instagram ${postType} info extracted for post:`, postId);
               } else {
                 throw new Error('Could not extract Instagram post ID');
               }
             } catch (oembedError) {
-              console.log('Instagram basic extraction failed:', oembedError.message);
+              console.log('Instagram extraction failed:', oembedError.message);
               previewData = {
                 title: 'Instagram Content',
                 description: 'Instagram content - click to view the full post',
