@@ -15,8 +15,15 @@ app.use(compression());
 
 // CORS configuration
 app.use(cors({
-  origin: ['http://localhost:19006', 'https://your-app-domain.com'], // Add your app domains
-  credentials: true
+  origin: [
+    'http://localhost:19006', 
+    'http://localhost:19000',
+    'http://localhost:3000',
+    'https://your-app-domain.com'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // Rate limiting - 100 requests per 15 minutes per IP

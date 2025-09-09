@@ -38,7 +38,7 @@ const PREVIEW_CONFIG = {
     },
     // 3. OpenGraph.io - Free tier: 100 requests/month
     opengraph: {
-      enabled: false, // Enable when you get API key
+      enabled: true, // Enable free tier
       baseUrl: 'https://opengraph.io/api/1.1/site',
       appId: 'YOUR_OPENGRAPH_APP_ID', // Get from: https://www.opengraph.io/
       priority: 3
