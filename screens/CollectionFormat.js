@@ -54,11 +54,11 @@ const PREVIEW_CONFIG = {
   
   // Rate limiting and retry configuration
   rateLimit: {
-    maxRetries: 2,
-    retryDelay: 2000, // 2 seconds
-    timeout: 10000, // 10 seconds
-    requestCooldown: 3000, // 3 seconds between requests for same URL
-    maxConcurrentRequests: 3
+    maxRetries: 3, // Increased retries
+    retryDelay: 1000, // Reduced to 1 second
+    timeout: 15000, // Increased to 15 seconds
+    requestCooldown: 1000, // Reduced to 1 second between requests for same URL
+    maxConcurrentRequests: 5 // Increased concurrent requests
   },
   
   // Cache configuration
@@ -120,6 +120,16 @@ const requestManager = {
     if (requestTracker.pendingRequests.size >= PREVIEW_CONFIG.rateLimit.maxConcurrentRequests) {
       console.log(`Too many concurrent requests (${requestTracker.pendingRequests.size})`);
       return false;
+    }
+    
+    // Check API-specific retry times
+    if (requestTracker.apiRetryTimes) {
+      for (const [apiName, retryTime] of requestTracker.apiRetryTimes.entries()) {
+        if (now < retryTime) {
+          console.log(`${apiName} is in retry cooldown until ${new Date(retryTime).toISOString()}`);
+          // Don't block the request, just log it
+        }
+      }
     }
     
     return true;
@@ -808,9 +818,17 @@ export default function CollectionFormat({ route, navigation }) {
               timeout: PREVIEW_CONFIG.rateLimit.timeout
             });
             
-            // Handle 429 rate limit errors
+            // Handle 429 rate limit errors with retry logic
             if (response.status === 429) {
-              console.log(`${apiName} rate limit hit (429), skipping`);
+              console.log(`${apiName} rate limit hit (429), will retry later`);
+              // Don't immediately skip, try to get retry-after header
+              const retryAfter = response.headers.get('retry-after');
+              if (retryAfter) {
+                console.log(`${apiName} retry after ${retryAfter} seconds`);
+                // Store retry time for this API
+                requestTracker.apiRetryTimes = requestTracker.apiRetryTimes || new Map();
+                requestTracker.apiRetryTimes.set(apiName, Date.now() + (parseInt(retryAfter) * 1000));
+              }
               continue;
             }
             
@@ -1279,7 +1297,7 @@ export default function CollectionFormat({ route, navigation }) {
                 previewData = {
                   title: `Facebook ${postType}`,
                   description: `View this ${postType.toLowerCase()} on Facebook - Post ID: ${postId}`,
-                  image: null, // Facebook requires authentication for images
+                  image: `https://via.placeholder.com/400x300/1877f2/ffffff?text=Facebook+${postType}`,
                   siteName: 'Facebook',
                   timestamp: new Date().toISOString(),
                   source: 'facebook_basic',
@@ -1295,7 +1313,7 @@ export default function CollectionFormat({ route, navigation }) {
               previewData = {
                 title: 'Facebook Content',
                 description: 'Facebook content - click to view the full post',
-                image: null,
+                image: 'https://via.placeholder.com/400x300/1877f2/ffffff?text=Facebook',
                 siteName: 'Facebook',
                 timestamp: new Date().toISOString(),
                 source: 'fallback'
@@ -1316,7 +1334,7 @@ export default function CollectionFormat({ route, navigation }) {
                 previewData = {
                   title: `Instagram ${postType}`,
                   description: `View this ${postType.toLowerCase()} on Instagram - Post ID: ${postId}`,
-                  image: null, // Instagram requires authentication for images
+                  image: `https://via.placeholder.com/400x300/e4405f/ffffff?text=Instagram+${postType}`,
                   siteName: 'Instagram',
                   timestamp: new Date().toISOString(),
                   source: 'instagram_basic',
@@ -1332,7 +1350,7 @@ export default function CollectionFormat({ route, navigation }) {
               previewData = {
                 title: 'Instagram Content',
                 description: 'Instagram content - click to view the full post',
-                image: null,
+                image: 'https://via.placeholder.com/400x300/e4405f/ffffff?text=Instagram',
                 siteName: 'Instagram',
                 timestamp: new Date().toISOString(),
                 source: 'fallback'
