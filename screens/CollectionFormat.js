@@ -1297,7 +1297,7 @@ export default function CollectionFormat({ route, navigation }) {
                 previewData = {
                   title: `Facebook ${postType}`,
                   description: `View this ${postType.toLowerCase()} on Facebook - Post ID: ${postId}`,
-                  image: `https://via.placeholder.com/400x300/1877f2/ffffff?text=Facebook+${postType}`,
+                  image: `data:image/svg+xml;base64,${btoa(`<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#1877f2"/><text x="200" y="150" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">Facebook ${postType}</text></svg>`)}`,
                   siteName: 'Facebook',
                   timestamp: new Date().toISOString(),
                   source: 'facebook_basic',
@@ -1313,7 +1313,7 @@ export default function CollectionFormat({ route, navigation }) {
               previewData = {
                 title: 'Facebook Content',
                 description: 'Facebook content - click to view the full post',
-                image: 'https://via.placeholder.com/400x300/1877f2/ffffff?text=Facebook',
+                image: `data:image/svg+xml;base64,${btoa(`<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#1877f2"/><text x="200" y="150" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">Facebook</text></svg>`)}`,
                 siteName: 'Facebook',
                 timestamp: new Date().toISOString(),
                 source: 'fallback'
@@ -1334,7 +1334,7 @@ export default function CollectionFormat({ route, navigation }) {
                 previewData = {
                   title: `Instagram ${postType}`,
                   description: `View this ${postType.toLowerCase()} on Instagram - Post ID: ${postId}`,
-                  image: `https://via.placeholder.com/400x300/e4405f/ffffff?text=Instagram+${postType}`,
+                  image: `data:image/svg+xml;base64,${btoa(`<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#e4405f"/><text x="200" y="150" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">Instagram ${postType}</text></svg>`)}`,
                   siteName: 'Instagram',
                   timestamp: new Date().toISOString(),
                   source: 'instagram_basic',
@@ -1350,7 +1350,7 @@ export default function CollectionFormat({ route, navigation }) {
               previewData = {
                 title: 'Instagram Content',
                 description: 'Instagram content - click to view the full post',
-                image: 'https://via.placeholder.com/400x300/e4405f/ffffff?text=Instagram',
+                image: `data:image/svg+xml;base64,${btoa(`<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#e4405f"/><text x="200" y="150" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">Instagram</text></svg>`)}`,
                 siteName: 'Instagram',
                 timestamp: new Date().toISOString(),
                 source: 'fallback'
