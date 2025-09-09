@@ -105,7 +105,7 @@ const requestManager = {
     }
     
     // Check cooldown period
-    if (lastRequest && (now - lastRequest) < INSTAGRAM_CONFIG.rateLimit.requestCooldown) {
+    if (lastRequest && (now - lastRequest) < PREVIEW_CONFIG.rateLimit.requestCooldown) {
       console.log(`Request for ${url} is in cooldown period`);
       return false;
     }
@@ -117,7 +117,7 @@ const requestManager = {
     }
     
     // Check concurrent request limit
-    if (requestTracker.pendingRequests.size >= INSTAGRAM_CONFIG.rateLimit.maxConcurrentRequests) {
+    if (requestTracker.pendingRequests.size >= PREVIEW_CONFIG.rateLimit.maxConcurrentRequests) {
       console.log(`Too many concurrent requests (${requestTracker.pendingRequests.size})`);
       return false;
     }
@@ -142,7 +142,7 @@ const requestManager = {
     const lastRequest = requestTracker.lastRequestTime.get(url);
     if (lastRequest) {
       const timeSinceLastRequest = Date.now() - lastRequest;
-      const remainingCooldown = INSTAGRAM_CONFIG.rateLimit.requestCooldown - timeSinceLastRequest;
+      const remainingCooldown = PREVIEW_CONFIG.rateLimit.requestCooldown - timeSinceLastRequest;
       if (remainingCooldown > 0) {
         console.log(`Waiting ${remainingCooldown}ms for cooldown period`);
         await new Promise(resolve => setTimeout(resolve, remainingCooldown));
@@ -1229,6 +1229,17 @@ export default function CollectionFormat({ route, navigation }) {
             source: 'fallback'
           };
         }
+      } catch (previewError) {
+        console.log('Enhanced preview fetching failed:', previewError.message);
+        previewData = {
+          title: getSiteNameFromUrl(normalizedUrl) + ' Link',
+          description: 'Click to view the full content',
+          image: null,
+          siteName: getSiteNameFromUrl(normalizedUrl),
+          timestamp: new Date().toISOString(),
+          source: 'fallback'
+        };
+      }
       
       // Save to Firebase for future use
       try {
