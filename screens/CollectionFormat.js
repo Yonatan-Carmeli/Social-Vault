@@ -1264,15 +1264,37 @@ export default function CollectionFormat({ route, navigation }) {
             }
           } else if (normalizedUrl.includes('facebook.com')) {
             try {
-              // Try Facebook oEmbed (limited but sometimes works)
-              const oembedUrl = `https://graph.facebook.com/v18.0/oembed_post?url=${encodeURIComponent(normalizedUrl)}&access_token=YOUR_FACEBOOK_ACCESS_TOKEN`;
-              // For now, skip Facebook oEmbed as it requires access token
-              throw new Error('Facebook oEmbed requires access token');
+              // Extract Facebook post ID and type
+              const postId = extractFacebookPostId(normalizedUrl);
+              const isVideo = normalizedUrl.includes('/videos/');
+              const isPhoto = normalizedUrl.includes('/photos/');
+              const isGroup = normalizedUrl.includes('/groups/');
+              
+              let postType = 'Post';
+              if (isVideo) postType = 'Video';
+              if (isPhoto) postType = 'Photo';
+              if (isGroup) postType = 'Group Post';
+              
+              if (postId) {
+                previewData = {
+                  title: `Facebook ${postType}`,
+                  description: `View this ${postType.toLowerCase()} on Facebook - Post ID: ${postId}`,
+                  image: null, // Facebook requires authentication for images
+                  siteName: 'Facebook',
+                  timestamp: new Date().toISOString(),
+                  source: 'facebook_basic',
+                  postId: postId,
+                  postType: postType
+                };
+                console.log(`Facebook ${postType} info extracted for post:`, postId);
+              } else {
+                throw new Error('Could not extract Facebook post ID');
+              }
             } catch (oembedError) {
-              console.log('Facebook oEmbed fallback failed:', oembedError.message);
+              console.log('Facebook basic extraction failed:', oembedError.message);
               previewData = {
-                title: 'Facebook Post',
-                description: 'Click to view the full content',
+                title: 'Facebook Content',
+                description: 'Facebook content - click to view the full post',
                 image: null,
                 siteName: 'Facebook',
                 timestamp: new Date().toISOString(),
@@ -1283,24 +1305,33 @@ export default function CollectionFormat({ route, navigation }) {
             try {
               // Instagram doesn't have public oEmbed, but we can try to extract basic info
               const postId = extractInstagramPostId(normalizedUrl);
+              const isReel = normalizedUrl.includes('/reel/');
+              const isStory = normalizedUrl.includes('/stories/');
+              
               if (postId) {
+                let postType = 'Post';
+                if (isReel) postType = 'Reel';
+                if (isStory) postType = 'Story';
+                
                 previewData = {
-                  title: 'Instagram Post',
-                  description: 'Instagram content - click to view the full post',
+                  title: `Instagram ${postType}`,
+                  description: `View this ${postType.toLowerCase()} on Instagram - Post ID: ${postId}`,
                   image: null, // Instagram requires authentication for images
                   siteName: 'Instagram',
                   timestamp: new Date().toISOString(),
-                  source: 'instagram_basic'
+                  source: 'instagram_basic',
+                  postId: postId,
+                  postType: postType
                 };
-                console.log('Instagram basic info extracted for post:', postId);
+                console.log(`Instagram ${postType} info extracted for post:`, postId);
               } else {
                 throw new Error('Could not extract Instagram post ID');
               }
             } catch (oembedError) {
               console.log('Instagram basic extraction failed:', oembedError.message);
               previewData = {
-                title: 'Instagram Post',
-                description: 'Click to view the full content',
+                title: 'Instagram Content',
+                description: 'Instagram content - click to view the full post',
                 image: null,
                 siteName: 'Instagram',
                 timestamp: new Date().toISOString(),
@@ -1417,6 +1448,39 @@ export default function CollectionFormat({ route, navigation }) {
       return null;
     } catch (error) {
       console.log('Error extracting Instagram post ID:', error.message);
+      return null;
+    }
+  };
+
+  // Helper function to extract Facebook post ID
+  const extractFacebookPostId = (url) => {
+    try {
+      const urlObj = new URL(url);
+      
+      if (urlObj.hostname.includes('facebook.com')) {
+        // Extract post ID from various Facebook URL patterns
+        // /posts/1234567890, /videos/1234567890, /photos/1234567890, etc.
+        const pathMatch = urlObj.pathname.match(/\/(?:posts|videos|photos|groups)\/([^\/\?]+)/);
+        if (pathMatch) {
+          return pathMatch[1];
+        }
+        
+        // Try to extract from share URLs like /share/p/ABC123/
+        const shareMatch = urlObj.pathname.match(/\/share\/p\/([^\/\?]+)/);
+        if (shareMatch) {
+          return shareMatch[1];
+        }
+        
+        // Try to extract from general post URLs
+        const postMatch = urlObj.pathname.match(/\/([a-zA-Z0-9]+)\/posts\/([^\/\?]+)/);
+        if (postMatch) {
+          return postMatch[2];
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.log('Error extracting Facebook post ID:', error.message);
       return null;
     }
   };
