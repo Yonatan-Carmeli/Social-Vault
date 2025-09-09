@@ -38,7 +38,7 @@ const PREVIEW_CONFIG = {
     },
     // 3. OpenGraph.io - Free tier: 100 requests/month
     opengraph: {
-      enabled: true, // Enable free tier
+      enabled: false, // Disabled - needs API key
       baseUrl: 'https://opengraph.io/api/1.1/site',
       appId: 'YOUR_OPENGRAPH_APP_ID', // Get from: https://www.opengraph.io/
       priority: 3
@@ -1219,15 +1219,54 @@ export default function CollectionFormat({ route, navigation }) {
             audio: data.audio || null
           };
         } else {
-          console.log('All legal preview sources failed, using fallback');
-          previewData = {
-            title: getSiteNameFromUrl(normalizedUrl) + ' Link',
-            description: 'Click to view the full content',
-            image: null,
-            siteName: getSiteNameFromUrl(normalizedUrl),
-            timestamp: new Date().toISOString(),
-            source: 'fallback'
-          };
+          console.log('All legal preview sources failed, trying YouTube oEmbed fallback');
+          
+          // Try YouTube oEmbed for YouTube links
+          if (normalizedUrl.includes('youtube.com') || normalizedUrl.includes('youtu.be')) {
+            try {
+              const videoId = extractYouTubeVideoId(normalizedUrl);
+              if (videoId) {
+                const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+                const oembedResponse = await fetch(oembedUrl);
+                if (oembedResponse.ok) {
+                  const oembedData = await oembedResponse.json();
+                  previewData = {
+                    title: oembedData.title || 'YouTube Video',
+                    description: oembedData.author_name ? `by ${oembedData.author_name}` : 'YouTube video',
+                    image: oembedData.thumbnail_url || null,
+                    siteName: 'YouTube',
+                    timestamp: new Date().toISOString(),
+                    source: 'youtube_oembed'
+                  };
+                  console.log('YouTube oEmbed success:', oembedData.title);
+                } else {
+                  throw new Error('YouTube oEmbed failed');
+                }
+              } else {
+                throw new Error('Could not extract YouTube video ID');
+              }
+            } catch (oembedError) {
+              console.log('YouTube oEmbed fallback failed:', oembedError.message);
+              previewData = {
+                title: 'YouTube Link',
+                description: 'Click to view the full content',
+                image: null,
+                siteName: 'YouTube',
+                timestamp: new Date().toISOString(),
+                source: 'fallback'
+              };
+            }
+          } else {
+            console.log('All legal preview sources failed, using generic fallback');
+            previewData = {
+              title: getSiteNameFromUrl(normalizedUrl) + ' Link',
+              description: 'Click to view the full content',
+              image: null,
+              siteName: getSiteNameFromUrl(normalizedUrl),
+              timestamp: new Date().toISOString(),
+              source: 'fallback'
+            };
+          }
         }
       } catch (previewError) {
         console.log('Enhanced preview fetching failed:', previewError.message);
@@ -1288,6 +1327,28 @@ export default function CollectionFormat({ route, navigation }) {
       showSuccessMessage(`Preview failed for ${getSiteNameFromUrl(url)} - will retry later`);
     } finally {
       setLoadingPreviews(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  // Helper function to extract YouTube video ID
+  const extractYouTubeVideoId = (url) => {
+    try {
+      const urlObj = new URL(url);
+      
+      // Handle youtu.be format
+      if (urlObj.hostname.includes('youtu.be')) {
+        return urlObj.pathname.substring(1).split('?')[0];
+      }
+      
+      // Handle youtube.com format
+      if (urlObj.hostname.includes('youtube.com')) {
+        return urlObj.searchParams.get('v');
+      }
+      
+      return null;
+    } catch (error) {
+      console.log('Error extracting YouTube video ID:', error.message);
+      return null;
     }
   };
 
